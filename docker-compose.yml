@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+      - DYNAMODB_ENDPOINT=http://dynamodb:8000
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+    container_name: myminiyourmini-app
+    depends_on:
+      - dynamodb
+
+  # Simplified DynamoDB Local configuration
+  dynamodb:
+    image: amazon/dynamodb-local
+    container_name: myminiyourmini-dynamodb
+    ports:
+      - "8000:8000"
+    # Simplified command - runs in memory mode to avoid file permission issues
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
