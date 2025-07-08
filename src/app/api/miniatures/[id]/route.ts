@@ -1,9 +1,7 @@
 // src/app/api/miniatures/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { miniatureDb } from '@/lib/miniatureDb'
-
-// Temporary user ID for development - in production this would come from authentication
-const TEMP_USER_ID = 'dev-user-1'
+import { getUserFromRequest } from '@/lib/userDb'
 
 // GET /api/miniatures/[id] - Get specific miniature
 export async function GET(
@@ -11,6 +9,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
     const resolvedParams = await params
     const miniature = await miniatureDb.getById(resolvedParams.id)
     
@@ -24,9 +36,8 @@ export async function GET(
       )
     }
     
-    // Security check: ensure the miniature belongs to the current user
-    // This prevents users from accessing miniatures that don't belong to them
-    if (miniature.userId !== TEMP_USER_ID) {
+    // Security check: ensure the miniature belongs to the authenticated user
+    if (miniature.userId !== user.id) {
       return NextResponse.json(
         { 
           success: false, 
@@ -59,13 +70,27 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const resolvedParams = await params
     
-    // First verify the miniature exists and belongs to the current user
+    // First verify the miniature exists and belongs to the authenticated user
     const existingMiniature = await miniatureDb.getById(resolvedParams.id)
     
-    if (!existingMiniature || existingMiniature.userId !== TEMP_USER_ID) {
+    if (!existingMiniature || existingMiniature.userId !== user.id) {
       return NextResponse.json(
         { 
           success: false, 
@@ -94,9 +119,6 @@ export async function PATCH(
       )
     }
 
-    // The new miniatureDb.update method handles validation internally
-    // This is a good example of how pushing validation into the database layer
-    // makes your API routes cleaner and more maintainable
     const updatedMiniature = await miniatureDb.update(resolvedParams.id, updates)
     
     return NextResponse.json({
@@ -123,12 +145,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
     const resolvedParams = await params
     
-    // First verify the miniature exists and belongs to the current user
+    // First verify the miniature exists and belongs to the authenticated user
     const existingMiniature = await miniatureDb.getById(resolvedParams.id)
     
-    if (!existingMiniature || existingMiniature.userId !== TEMP_USER_ID) {
+    if (!existingMiniature || existingMiniature.userId !== user.id) {
       return NextResponse.json(
         { 
           success: false, 

@@ -1,7 +1,7 @@
 // src/app/api/setup/route.ts
 import { NextResponse } from 'next/server'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { CreateTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb'
+import { CreateTableCommand, DescribeTableCommand, KeySchemaElement, AttributeDefinition, KeyType, ScalarAttributeType } from '@aws-sdk/client-dynamodb'
 import { TABLE_NAMES } from '@/lib/database'
 
 const client = new DynamoDBClient({
@@ -24,7 +24,11 @@ async function tableExists(tableName: string): Promise<boolean> {
 }
 
 // Helper function to create a table
-async function createTable(tableName: string, keySchema: any[], attributeDefinitions: any[]) {
+async function createTable(
+  tableName: string,
+   keySchema: KeySchemaElement[],
+    attributeDefinitions: AttributeDefinition[]
+  ) {
   const createTableCommand = new CreateTableCommand({
     TableName: tableName,
     KeySchema: keySchema,
@@ -45,8 +49,8 @@ export async function POST() {  // Notice: no request parameter needed
     } else {
       await createTable(
         TABLE_NAMES.MINIATURES,
-        [{ AttributeName: 'id', KeyType: 'HASH' }],
-        [{ AttributeName: 'id', AttributeType: 'S' }]
+        [{ AttributeName: 'id', KeyType: KeyType.HASH }],
+        [{ AttributeName: 'id', AttributeType: ScalarAttributeType.S }]
       )
       results.push(`Table ${TABLE_NAMES.MINIATURES} created successfully`)
     }
@@ -57,8 +61,8 @@ export async function POST() {  // Notice: no request parameter needed
     } else {
       await createTable(
         TABLE_NAMES.STAGES,
-        [{ AttributeName: 'id', KeyType: 'HASH' }],
-        [{ AttributeName: 'id', AttributeType: 'S' }]
+        [{ AttributeName: 'id', KeyType: KeyType.HASH }],
+        [{ AttributeName: 'id', AttributeType: ScalarAttributeType.S }]
       )
       results.push(`Table ${TABLE_NAMES.STAGES} created successfully`)
     }

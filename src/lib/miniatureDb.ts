@@ -21,7 +21,7 @@ import {
 // Updated miniature interface that references stages by ID instead of hardcoded strings
 export interface Miniature {
   id: string
-  userId: string          // For future multi-user support
+  userId: string
   name: string
   description: string
   stageId: string         // References Stage.id instead of hardcoded stage name

@@ -1,22 +1,34 @@
 // src/app/api/miniatures/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { miniatureDb } from '@/lib/miniatureDb'
+import { getUserFromRequest } from '@/lib/userDb'
 
-// Temporary user ID for development - in production this would come from authentication
-const TEMP_USER_ID = 'dev-user-1'
-
-// GET /api/miniatures - Fetch all miniatures for the current user
-export async function GET() {
+// GET /api/miniatures - Fetch all miniatures for the authenticated user
+export async function GET(request: NextRequest) {
   try {
-    // Notice how we now pass the user ID to scope the query appropriately
-    // This prevents accidentally returning miniatures from other users
-    const miniatures = await miniatureDb.getAllForUser(TEMP_USER_ID)
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
 
-    console.log('Retrieved miniatures:', JSON.stringify(miniatures, null, 2))
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
+    // Fetch miniatures for the authenticated user
+    const miniatures = await miniatureDb.getAllForUser(user.id)
+
+    console.log(`Retrieved ${miniatures.length} miniatures for user ${user.username}`)
     
+    // Also fetch stages for initialization
     const { stagesDb } = await import('@/lib/stageDb')
-    const stages = await stagesDb.getAllForUser(TEMP_USER_ID)
-    console.log('Available stages:', JSON.stringify(stages, null, 2))
+    const stages = await stagesDb.getAllForUser(user.id)
+    console.log(`Available stages: ${stages.length}`)
 
     return NextResponse.json({
       success: true,
@@ -35,12 +47,26 @@ export async function GET() {
   }
 }
 
-// POST /api/miniatures - Create a new miniature
+// POST /api/miniatures - Create a new miniature for authenticated user
 export async function POST(request: NextRequest) {
   try {
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     
-    // Validate required fields using the same approach as before
+    // Validate required fields
     const { name, description = '' } = body
     
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -53,21 +79,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // For now, we need to determine which stage new miniatures should start in
-    // In the future, this could be configurable per user or passed from the frontend
-    // For development, let's assume they start in the first stage (Queue)
-    
-    // First, get the user's stages to find the first one
+    // Get the user's stages to find the first one
     const { stagesDb } = await import('@/lib/stageDb')
-    const stages = await stagesDb.getAllForUser(TEMP_USER_ID)
+    const stages = await stagesDb.getAllForUser(user.id)
+    
+    let defaultStageId: string | undefined
     
     if (stages.length === 0) {
-      // If the user has no stages, initialize them with defaults
-      await stagesDb.initializeDefaultStages(TEMP_USER_ID)
-      const newStages = await stagesDb.getAllForUser(TEMP_USER_ID)
-      var defaultStageId = newStages[0]?.id
+      // Initialize default stages if user has none
+      await stagesDb.initializeDefaultStages(user.id)
+      const newStages = await stagesDb.getAllForUser(user.id)
+      defaultStageId = newStages[0]?.id
     } else {
-      var defaultStageId = stages[0]?.id
+      defaultStageId = stages[0]?.id
     }
 
     if (!defaultStageId) {
@@ -80,14 +104,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create miniature with the new method signature
+    // Create miniature for authenticated user
     const miniatureData = {
       name: name.trim(),
       description: description.trim(),
-      stageId: defaultStageId  // New miniatures start in the first stage
+      stageId: defaultStageId
     }
 
-    const newMiniature = await miniatureDb.create(TEMP_USER_ID, miniatureData)
+    const newMiniature = await miniatureDb.create(user.id, miniatureData)
     
     return NextResponse.json({
       success: true,

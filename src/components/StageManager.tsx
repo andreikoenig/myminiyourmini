@@ -1,7 +1,7 @@
-// src/components/StageManager.tsx - List view only with position field
+// src/components/StageManager.tsx - With functional delete feature
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import { useMiniatureStore } from '@/stores/miniatureStore'
 import { getStageColorClasses } from '@/lib/stageDb'
@@ -20,6 +20,17 @@ import {
   DialogTrigger,
   DialogFooter
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { 
   Select,
   SelectContent,
@@ -27,6 +38,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Plus, Edit2, Trash2, GripVertical, AlertCircle } from 'lucide-react'
 
 // Available colors for stages
@@ -60,7 +76,7 @@ export default function StageManager() {
     updateStage,
     deleteStage,
     reorderStages,
-    clearError
+    clearError,
   } = useMiniatureStore()
 
   const [isOpen, setIsOpen] = useState(false)
@@ -74,11 +90,12 @@ export default function StageManager() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [optimisticStages, setOptimisticStages] = useState(stages)
   const [dragError, setDragError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Update optimistic state when store state changes
-  useState(() => {
+  useEffect(() => {
     setOptimisticStages([...stages]) // Create new array to trigger re-render
-  })
+  }, [stages])
 
   // Count miniatures in each stage
   const miniaturesByStage = stages.reduce((acc, stage) => {
@@ -88,7 +105,7 @@ export default function StageManager() {
 
   // Handle drag end for stage reordering
   const handleDragEnd = async (result: DropResult) => {
-    const { destination, source, draggableId } = result
+    const { destination, source } = result
 
     // Clear any previous drag errors
     setDragError(null)
@@ -214,27 +231,46 @@ export default function StageManager() {
   }
 
   const handleDeleteStage = async (stageId: string) => {
+    setDeleteError(null)
+    
     const stage = stages.find(s => s.id === stageId)
     const miniatureCount = miniaturesByStage[stageId] || 0
     
+    if (!stage) {
+      setDeleteError('Stage not found')
+      return
+    }
+    
     if (miniatureCount > 0) {
-      alert(`Cannot delete "${stage?.name}" stage with ${miniatureCount} miniatures. Move them to other stages first.`)
+      setDeleteError(`Cannot delete "${stage.name}" stage with ${miniatureCount} miniatures. Move them to other stages first.`)
       return
     }
 
-    if (stage?.isDefault) {
-      alert('Cannot delete default stages. You can edit them instead.')
-      return
+    try {
+      await deleteStage(stageId)
+      console.log(`Successfully deleted stage: ${stage.name}`)
+    } catch (error) {
+      console.error('Failed to delete stage:', error)
+      setDeleteError('Failed to delete stage. Please try again.')
     }
+  }
 
-    if (confirm(`Are you sure you want to delete the "${stage?.name}" stage?`)) {
-      try {
-        await deleteStage(stageId)
-      } catch (error) {
-        console.error('Failed to delete stage:', error)
-        // Error handling is managed by the store
-      }
-    }
+  // Check if a stage can be deleted
+  const canDeleteStage = (stageId: string) => {
+    const stage = stages.find(s => s.id === stageId)
+    const miniatureCount = miniaturesByStage[stageId] || 0
+    
+    return stage && miniatureCount === 0
+  }
+
+  // Get delete button tooltip
+  const getDeleteTooltip = (stageId: string) => {
+    const stage = stages.find(s => s.id === stageId)
+    const miniatureCount = miniaturesByStage[stageId] || 0
+    
+    if (!stage) return 'Stage not found'
+    if (miniatureCount > 0) return `Cannot delete stage with ${miniatureCount} miniatures`
+    return 'Delete stage'
   }
 
   if (isLoading) {
@@ -248,16 +284,17 @@ export default function StageManager() {
   return (
     <div className="space-y-6">
       {/* Error Display */}
-      {(error || dragError) && (
+      {(error || dragError || deleteError) && (
         <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
           <AlertCircle className="h-5 w-5 text-red-600" />
-          <span className="text-red-700">{error || dragError}</span>
+          <span className="text-red-700">{error || dragError || deleteError}</span>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
               clearError()
               setDragError(null)
+              setDeleteError(null)
             }}
             className="ml-auto text-red-600 hover:text-red-700"
           >
@@ -389,6 +426,7 @@ export default function StageManager() {
               {optimisticStages.map((stage, index) => {
                 const colorClasses = getStageColorClasses(stage.color)
                 const miniatureCount = miniaturesByStage[stage.id] || 0
+                const canDelete = canDeleteStage(stage.id)
 
                 return (
                   <Draggable key={stage.id} draggableId={stage.id} index={index}>
@@ -447,31 +485,77 @@ export default function StageManager() {
                               </div>
                               
                               <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenDialog(stage.id)}
-                                  className="h-8 w-8 p-0"
-                                  title="Edit stage"
-                                >
-                                  <Edit2 className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteStage(stage.id)}
-                                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                                  disabled={miniatureCount > 0 || stage.isDefault}
-                                  title={
-                                    stage.isDefault 
-                                      ? "Cannot delete default stages" 
-                                      : miniatureCount > 0 
-                                        ? `Cannot delete stage with ${miniatureCount} miniatures`
-                                        : "Delete stage"
-                                  }
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleOpenDialog(stage.id)}
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <Edit2 className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Edit stage</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                
+                                {canDelete ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Delete Stage</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              Are you sure you want to delete the &quot;{stage.name}&quot; stage? This action cannot be undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => handleDeleteStage(stage.id)}
+                                              className="bg-red-600 hover:bg-red-700"
+                                            >
+                                              Delete Stage
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{getDeleteTooltip(stage.id)}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="inline-block">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 p-0 text-gray-400 cursor-not-allowed"
+                                          disabled
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{getDeleteTooltip(stage.id)}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
                               </div>
                             </div>
                           </CardContent>
@@ -493,9 +577,9 @@ export default function StageManager() {
         <div className="text-sm text-blue-800 space-y-1">
           <p>• Drag the grip icons to reorder stages</p>
           <p>• Use the position field in the form to set exact placement</p>
-          <p>• Default stages cannot be deleted but can be edited</p>
           <p>• Stages with miniatures cannot be deleted - move miniatures to other stages first</p>
           <p>• New miniatures automatically start in the first stage</p>
+          <p>• Click the trash icon to delete empty stages</p>
         </div>
       </div>
 

@@ -1,9 +1,7 @@
 // src/app/api/stages/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { stagesDb } from '@/lib/stageDb'
-
-// Temporary user ID for development
-const TEMP_USER_ID = 'dev-user-1'
+import { getUserFromRequest } from '@/lib/userDb'
 
 // GET /api/stages/[id] - Get specific stage
 export async function GET(
@@ -11,6 +9,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
     const resolvedParams = await params
     const stage = await stagesDb.getById(resolvedParams.id)
     
@@ -24,8 +36,8 @@ export async function GET(
       )
     }
     
-    // Security check: ensure the stage belongs to the current user
-    if (stage.userId !== TEMP_USER_ID) {
+    // Security check: ensure the stage belongs to the authenticated user
+    if (stage.userId !== user.id) {
       return NextResponse.json(
         { 
           success: false, 
@@ -58,13 +70,27 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const resolvedParams = await params
     
-    // First verify the stage exists and belongs to the current user
+    // First verify the stage exists and belongs to the authenticated user
     const existingStage = await stagesDb.getById(resolvedParams.id)
     
-    if (!existingStage || existingStage.userId !== TEMP_USER_ID) {
+    if (!existingStage || existingStage.userId !== user.id) {
       return NextResponse.json(
         { 
           success: false, 
@@ -119,12 +145,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
     const resolvedParams = await params
     
-    // First verify the stage exists and belongs to the current user
+    // First verify the stage exists and belongs to the authenticated user
     const existingStage = await stagesDb.getById(resolvedParams.id)
     
-    if (!existingStage || existingStage.userId !== TEMP_USER_ID) {
+    if (!existingStage || existingStage.userId !== user.id) {
       return NextResponse.json(
         { 
           success: false, 
@@ -136,7 +176,7 @@ export async function DELETE(
 
     // Check if stage has miniatures - we need to import miniatureDb for this
     const { miniatureDb } = await import('@/lib/miniatureDb')
-    const miniaturesInStage = await miniatureDb.getAllInStage(TEMP_USER_ID, resolvedParams.id)
+    const miniaturesInStage = await miniatureDb.getAllInStage(user.id, resolvedParams.id)
     
     if (miniaturesInStage.length > 0) {
       return NextResponse.json(

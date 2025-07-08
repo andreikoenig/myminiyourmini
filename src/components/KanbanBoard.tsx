@@ -1,12 +1,11 @@
-// src/components/KanbanBoard.tsx
+// src/components/KanbanBoard.tsx - Fixed for proper state updates
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import { useMiniatureStore } from '@/stores/miniatureStore'
 import { getStageColorClasses } from '@/lib/stageDb'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
 export default function KanbanBoard() {
@@ -16,21 +15,16 @@ export default function KanbanBoard() {
     isLoading,
     error,
     updateMiniature,
-    moveToNextStage,
-    moveToPreviousStage,
-    getStageForMiniature,
-    getNextStage,
-    getPreviousStage
   } = useMiniatureStore()
 
   // Local state for optimistic updates during drag operations
   const [optimisticMiniatures, setOptimisticMiniatures] = useState(miniatures)
   const [dragError, setDragError] = useState<string | null>(null)
 
-  // Update optimistic state when store state changes
-  useState(() => {
+  // Update optimistic state when store state changes (this was the bug!)
+  useEffect(() => {
     setOptimisticMiniatures(miniatures)
-  })
+  }, [miniatures])
 
   // Group miniatures by their current stage using optimistic state
   const miniaturesByStage = stages.reduce((acc, stage) => {
@@ -40,14 +34,6 @@ export default function KanbanBoard() {
 
   // Handle drag end event
   const handleDragEnd = async (result: DropResult) => {
-    // Disable drop animation for instant movement
-    if (result.destination) {
-      const element = document.querySelector(`[data-rbd-draggable-id="${result.draggableId}"]`);
-      if (element) {
-        (element as HTMLElement).style.transition = 'none';
-      }
-    }
-
     const { destination, source, draggableId } = result
 
     // Clear any previous drag errors
@@ -68,7 +54,6 @@ export default function KanbanBoard() {
 
     const miniatureId = draggableId
     const newStageId = destination.droppableId
-    const oldStageId = source.droppableId
 
     // Find the miniature being moved
     const miniature = optimisticMiniatures.find(m => m.id === miniatureId)
@@ -87,7 +72,6 @@ export default function KanbanBoard() {
       // Call the API to persist the change
       await updateMiniature(miniatureId, { stageId: newStageId })
 
-      // Success! The store will update automatically, and our useEffect will sync
       console.log(`Successfully moved ${miniature.name} to new stage`)
 
     } catch (error) {
@@ -146,159 +130,141 @@ export default function KanbanBoard() {
         </div>
       )}
 
-      {/* Drag and Drop Context */}
+      {/* Drag and Drop Context - Truly Responsive */}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="overflow-x-auto">
-          <div
-            className="flex gap-6 min-w-max pb-6"
-            style={{ minWidth: `${stages.length * 320}px` }}
-          >
+        <div className="w-full overflow-x-auto">
+          <div className={`
+            grid gap-6 pb-6
+            ${stages.length === 1 ? 'grid-cols-1' : ''}
+            ${stages.length === 2 ? 'grid-cols-1 md:grid-cols-2' : ''}
+            ${stages.length === 3 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : ''}
+            ${stages.length === 4 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : ''}
+            ${stages.length === 5 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : ''}
+            ${stages.length === 6 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6' : ''}
+            ${stages.length === 7 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7' : ''}
+            ${stages.length === 8 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8' : ''}
+            ${stages.length >= 9 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : ''}
+          `} style={{ 
+            minWidth: stages.length > 4 ? 'max-content' : 'auto'
+          }}>
             {stages.map((stage) => {
-              const stageColorClasses = getStageColorClasses(stage.color)
               const stageMiniatures = miniaturesByStage[stage.id] || []
 
               return (
-                <div
-                  key={stage.id}
-                  className="kanban-column flex-shrink-0 w-80"
-                >
-                  {/* Stage Column Header */}
-                  <div
-                    className={`
-                      rounded-lg p-4 mb-4 border-l-4 
-                      ${stageColorClasses.border} 
-                      ${stageColorClasses.background}
-                    `}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className={`text-lg font-semibold ${stageColorClasses.text}`}>
-                        {stage.name}
-                      </h3>
-                      <Badge
-                        variant="secondary"
-                        className="bg-white/80"
-                      >
-                        {stageMiniatures.length}
-                      </Badge>
-                    </div>
-                    {stage.description && (
-                      <p className="text-sm text-gray-600 mt-1">
-                        {stage.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Droppable Stage Column */}
+                <div key={stage.id} className="kanban-column min-w-[240px]">
+                  {/* Unified Swimlane Container - Title + Cards in one gray box */}
                   <Droppable droppableId={stage.id}>
                     {(provided, snapshot) => (
                       <div
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={`
-                          space-y-3 min-h-[200px] p-2 rounded-lg transition-colors
+                          bg-gray-100 rounded-lg min-h-[320px] transition-all duration-200 border-2 border-gray-300
                           ${snapshot.isDraggingOver
-                            ? 'bg-blue-50 border-2 border-blue-200 border-dashed'
-                            : 'bg-transparent'
+                            ? 'bg-blue-100 ring-2 ring-blue-300 ring-opacity-50 border-blue-400'
+                            : 'hover:bg-gray-50 hover:border-gray-400'
                           }
                         `}
                       >
-                        {stageMiniatures.length === 0 && !snapshot.isDraggingOver ? (
-                          <div className="flex items-center justify-center h-32 border-2 border-dashed border-gray-200 rounded-lg">
-                            <p className="text-gray-400 text-sm">
-                              {snapshot.isDraggingOver ? 'Drop here' : `No miniatures in ${stage.name}`}
-                            </p>
+                        {/* Title inside the swimlane */}
+                        <div className="p-3 pb-2 border-b border-gray-200/50">
+                          <div className="flex items-center justify-between mb-1">
+                            <h3 className={`text-base font-semibold ${getStageColorClasses(stage.color).text}`}>
+                              {stage.name}
+                            </h3>
+                            <Badge variant="secondary" className="bg-white/80 text-gray-600 text-xs px-2 py-0.5">
+                              {stageMiniatures.length}
+                            </Badge>
                           </div>
-                        ) : (
-                          stageMiniatures.map((miniature, index) => (
-                            <Draggable
-                              key={miniature.id}
-                              draggableId={miniature.id}
-                              index={index}
-                            >
-                              {(provided, snapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  {...provided.dragHandleProps}
-                                  className={`
-                                    ${snapshot.isDragging ? 'rotate-3 scale-105' : ''}
-                                    transition-transform
-                                  `}
+                          {stage.description && (
+                            <p className="text-xs text-gray-600 mt-1">
+                              {stage.description}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Cards area */}
+                        <div className="p-2">
+                          <div className="space-y-2">
+                            {stageMiniatures.length === 0 ? (
+                              <div className="flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-lg bg-white/50">
+                                <p className="text-gray-500 text-xs font-medium">
+                                  {snapshot.isDraggingOver ? 'Drop miniature here' : `Drop miniatures here`}
+                                </p>
+                              </div>
+                            ) : (
+                              stageMiniatures.map((miniature, index) => (
+                                <Draggable
+                                  key={miniature.id}
+                                  draggableId={miniature.id}
+                                  index={index}
                                 >
-                                  <Card
-                                    className={`
-                                      kanban-card hover:shadow-lg transition-all duration-200 cursor-grab active:cursor-grabbing
-                                      border-l-4 ${stageColorClasses.border}
-                                      ${snapshot.isDragging
-                                        ? 'bg-white shadow-2xl ring-2 ring-blue-300'
-                                        : 'bg-white hover:bg-gray-50'
-                                      }
-                                    `}
-                                    style={{
-                                      transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
-                                      transitionDuration: snapshot.isDragging ? '0ms' : '200ms'
-                                    }}
-                                  >
-                                    <CardHeader className="pb-3">
-                                      <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                          <CardTitle className="text-base font-medium text-gray-900 leading-tight">
-                                            {miniature.name}
-                                          </CardTitle>
-                                          {miniature.description && (
-                                            <CardDescription className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                              {miniature.description}
-                                            </CardDescription>
+                                  {(provided, snapshot) => (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                      {...provided.dragHandleProps}
+                                      className={`
+                                        ${snapshot.isDragging ? 'rotate-2 scale-105 z-50' : ''}
+                                        transition-transform duration-200
+                                      `}
+                                    >
+                                      <Card
+                                        className={`
+                                          kanban-card hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing
+                                          border-l-4 ${getStageColorClasses(stage.color).border} bg-white py-1
+                                          ${snapshot.isDragging
+                                            ? 'shadow-2xl ring-2 ring-blue-400 ring-opacity-75'
+                                            : 'hover:shadow-md hover:-translate-y-1'
+                                          }
+                                        `}
+                                        style={{
+                                          transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
+                                          transitionDuration: snapshot.isDragging ? '0ms' : '200ms'
+                                        }}
+                                      >
+                                        <div className="px-2">
+                                          {/* Title and description */}
+                                          <div className="mb-1">
+                                            <div className="text-sm font-medium text-gray-900 leading-tight">
+                                              {miniature.name}
+                                            </div>
+                                            {miniature.description && (
+                                              <div className="text-xs text-gray-500 mt-1 line-clamp-1">
+                                                {miniature.description}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Metadata */}
+                                          <div className="flex items-center justify-between">
+                                            <div className="text-xs text-gray-400">
+                                              {new Date(miniature.createdAt).toLocaleDateString()}
+                                            </div>
+                                            
+                                            {/* Drag indicator */}
+                                            <div className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">
+                                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path>
+                                              </svg>
+                                            </div>
+                                          </div>
+
+                                          {snapshot.isDragging && (
+                                            <div className="mt-1 text-xs text-blue-600 font-medium text-center bg-blue-50 rounded px-2 py-0.5">
+                                              Drop in any stage...
+                                            </div>
                                           )}
                                         </div>
-                                      </div>
-                                    </CardHeader>
-
-                                    <CardContent className="pt-0">
-                                      {/* Miniature Actions - Only show when not dragging */}
-                                      {!snapshot.isDragging && (
-                                        <div className="flex gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1 text-xs"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              moveToPreviousStage(miniature.id)
-                                            }}
-                                            disabled={!getPreviousStage(miniature.id)}
-                                          >
-                                            ← Prev
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            className="flex-1 text-xs"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              moveToNextStage(miniature.id)
-                                            }}
-                                            disabled={!getNextStage(miniature.id)}
-                                          >
-                                            Next →
-                                          </Button>
-                                        </div>
-                                      )}
-
-                                      {/* Metadata */}
-                                      <div className="flex items-center justify-between mt-3 text-xs text-gray-400">
-                                        <span>Added {new Date(miniature.createdAt).toLocaleDateString()}</span>
-                                        {snapshot.isDragging && (
-                                          <span className="text-blue-600 font-medium">Dragging...</span>
-                                        )}
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                </div>
-                              )}
-                            </Draggable>
-                          ))
-                        )}
-                        {provided.placeholder}
+                                      </Card>
+                                    </div>
+                                  )}
+                                </Draggable>
+                              ))
+                            )}
+                          </div>
+                          {provided.placeholder}
+                        </div>
                       </div>
                     )}
                   </Droppable>

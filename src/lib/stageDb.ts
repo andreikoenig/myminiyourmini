@@ -161,7 +161,7 @@ import {
     async initializeDefaultStages(userId: string): Promise<Stage[]> {
       try {
         const now = getCurrentTimestamp()
-        const defaultStages: Stage[] = DEFAULT_STAGE_TEMPLATES.map((template, index) => ({
+        const defaultStages: Stage[] = DEFAULT_STAGE_TEMPLATES.map((template) => ({
           ...template,
           id: generateId('stage'),
           userId,

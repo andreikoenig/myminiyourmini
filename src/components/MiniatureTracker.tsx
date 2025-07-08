@@ -1,4 +1,3 @@
-// src/components/MiniatureTracker.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -9,25 +8,29 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useMiniatureStore } from '@/stores/miniatureStore'
+import { useAuthStore } from '@/stores/authStore'
 import { getStageColorClasses } from '@/lib/stageDb'
 import KanbanBoard from '@/components/KanbanBoard'
 import StageManager from '@/components/StageManager'
+import UserMenu from '@/components/UserMenu'
 
 export default function MiniatureTracker() {
+  // Get authenticated user
+  const { user } = useAuthStore()
+  
   // Get state and actions from Zustand store
   const {
     miniatures,
-    stages,
     isLoading,
     error,
     fetchMiniatures,
     addMiniature,
-    moveToNextStage,
-    moveToPreviousStage,
+    // moveToNextStage,
+    // moveToPreviousStage,
     clearError,
     getStageForMiniature,
-    getNextStage,
-    getPreviousStage
+    // getNextStage,
+    // getPreviousStage
   } = useMiniatureStore()
 
   // Local form state
@@ -76,14 +79,17 @@ export default function MiniatureTracker() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            My Mini, Your Mini
-          </h1>
-          <p className="text-lg text-gray-600">
-            Track your miniature painting progress
-          </p>
+        {/* Header with user menu */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              My Mini, Your Mini
+            </h1>
+            <p className="text-lg text-gray-600">
+              Welcome back, {user?.username}! Track your miniature painting progress.
+            </p>
+          </div>
+          <UserMenu />
         </div>
 
         {/* Error Display */}
@@ -162,6 +168,7 @@ export default function MiniatureTracker() {
             </CardContent>
           </Card>
         )}
+
         {/* View Toggle */}
         <div className="flex items-center gap-4 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900">
@@ -240,13 +247,13 @@ export default function MiniatureTracker() {
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent>
+                      {/* <CardContent>
                         {miniature.description && (
                           <p className="text-gray-600 mb-4">{miniature.description}</p>
-                        )}
+                        )} */}
 
                         {/* Stage Control Buttons */}
-                        <div className="flex gap-2">
+                        {/* <div className="flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -262,8 +269,8 @@ export default function MiniatureTracker() {
                           >
                             Next →
                           </Button>
-                        </div>
-                      </CardContent>
+                        </div> */}
+                      {/* </CardContent> */}
                     </Card>
                   )
                 })}
@@ -271,7 +278,6 @@ export default function MiniatureTracker() {
             )}
           </>
         )}
-
       </div>
     </div>
   )

@@ -1,20 +1,32 @@
-// src/app/api/stages/route.ts - Fixed with position support
+// src/app/api/stages/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { stagesDb } from '@/lib/stageDb'
 import { validateStageName, validateStageColor } from '@/lib/schemas'
+import { getUserFromRequest } from '@/lib/userDb'
 
-// Temporary user ID for development
-const TEMP_USER_ID = 'dev-user-1'
-
-// GET /api/stages - Fetch all stages for the current user
-export async function GET() {
+// GET /api/stages - Fetch all stages for the authenticated user
+export async function GET(request: NextRequest) {
   try {
-    let stages = await stagesDb.getAllForUser(TEMP_USER_ID)
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
+    let stages = await stagesDb.getAllForUser(user.id)
     
     // If no stages exist, initialize with defaults
     if (stages.length === 0) {
-      console.log('No stages found, initializing defaults...')
-      stages = await stagesDb.initializeDefaultStages(TEMP_USER_ID)
+      console.log(`No stages found for user ${user.username}, initializing defaults...`)
+      stages = await stagesDb.initializeDefaultStages(user.id)
     }
     
     return NextResponse.json({
@@ -34,9 +46,23 @@ export async function GET() {
   }
 }
 
-// POST /api/stages - Create a new stage
+// POST /api/stages - Create a new stage for authenticated user
 export async function POST(request: NextRequest) {
   try {
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     
     // Validate required fields
@@ -67,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for duplicate stage names for this user
-    const existingStages = await stagesDb.getAllForUser(TEMP_USER_ID)
+    const existingStages = await stagesDb.getAllForUser(user.id)
     const duplicateName = existingStages.find(stage => 
       stage.name.toLowerCase() === name.trim().toLowerCase()
     )
@@ -89,13 +115,13 @@ export async function POST(request: NextRequest) {
       color
     }
 
-    // Create the new stage
-    const newStage = await stagesDb.create(TEMP_USER_ID, stageData)
+    // Create the new stage for authenticated user
+    const newStage = await stagesDb.create(user.id, stageData)
     
     // Handle positioning if specified
     if (typeof insertAtPosition === 'number' && insertAtPosition >= 0) {
       // Get all stages including the new one
-      const allStages = await stagesDb.getAllForUser(TEMP_USER_ID)
+      const allStages = await stagesDb.getAllForUser(user.id)
       
       // Remove the new stage from its current position (should be at the end)
       const stagesWithoutNew = allStages.filter(s => s.id !== newStage.id)
@@ -105,15 +131,15 @@ export async function POST(request: NextRequest) {
       
       // Reorder all stages
       const orderedStageIds = stagesWithoutNew.map(stage => stage.id)
-      await stagesDb.reorderStages(TEMP_USER_ID, orderedStageIds)
+      await stagesDb.reorderStages(user.id, orderedStageIds)
       
       // Return the updated stage list
-      const finalStages = await stagesDb.getAllForUser(TEMP_USER_ID)
+      const finalStages = await stagesDb.getAllForUser(user.id)
       
       return NextResponse.json({
         success: true,
         data: newStage,
-        allStages: finalStages // Include all stages so frontend can update
+        allStages: finalStages
       }, { status: 201 })
     }
     
@@ -135,9 +161,23 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/stages/reorder - Reorder stages (for drag-and-drop)
+// PUT /api/stages/reorder - Reorder stages for authenticated user
 export async function PUT(request: NextRequest) {
   try {
+    // Get authenticated user from request
+    const authHeader = request.headers.get('authorization')
+    const user = await getUserFromRequest(authHeader)
+
+    if (!user) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { orderedStageIds } = body
     
@@ -151,8 +191,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Verify all stages belong to the current user
-    const existingStages = await stagesDb.getAllForUser(TEMP_USER_ID)
+    // Verify all stages belong to the authenticated user
+    const existingStages = await stagesDb.getAllForUser(user.id)
     const existingStageIds = new Set(existingStages.map(s => s.id))
     
     const invalidIds = orderedStageIds.filter(id => !existingStageIds.has(id))
@@ -166,11 +206,11 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Reorder the stages
-    await stagesDb.reorderStages(TEMP_USER_ID, orderedStageIds)
+    // Reorder the stages for authenticated user
+    await stagesDb.reorderStages(user.id, orderedStageIds)
     
     // Return updated stages
-    const updatedStages = await stagesDb.getAllForUser(TEMP_USER_ID)
+    const updatedStages = await stagesDb.getAllForUser(user.id)
     
     return NextResponse.json({
       success: true,

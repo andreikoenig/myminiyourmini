@@ -1,4 +1,4 @@
-// src/stores/miniatureStore.ts - Fixed with better state management
+// src/stores/miniatureStore.ts - Simplified for Kanban-only workflow
 import { create } from 'zustand'
 import { Stage } from '@/lib/schemas'
 
@@ -34,8 +34,6 @@ interface MiniatureState {
   addMiniature: (data: { name: string; description: string }) => Promise<void>
   updateMiniature: (id: string, updates: Partial<Miniature>) => Promise<void>
   deleteMiniature: (id: string) => Promise<void>
-  moveToNextStage: (id: string) => Promise<void>
-  moveToPreviousStage: (id: string) => Promise<void>
   
   // Stage Actions
   addStage: (data: { name: string; description?: string; color: string; insertAtPosition?: number }) => Promise<void>
@@ -46,10 +44,9 @@ interface MiniatureState {
   // Utility Actions
   clearError: () => void
   
-  // Helper functions
+  // Helper functions for the Kanban board
   getStageForMiniature: (miniatureId: string) => Stage | null
-  getNextStage: (miniatureId: string) => Stage | null
-  getPreviousStage: (miniatureId: string) => Stage | null
+  getMiniaturesInStage: (stageId: string) => Miniature[]
 }
 
 // API helper functions
@@ -123,8 +120,8 @@ export const useMiniatureStore = create<MiniatureState>((set, get) => ({
 
       if (response.data) {
         // Add the new miniature to the current list
-        set((state) => ({ 
-          miniatures: [...state.miniatures, response.data!],
+        set(() => ({ 
+          miniatures: [...get().miniatures, response.data!],
           isLoading: false 
         }))
       }
@@ -136,7 +133,7 @@ export const useMiniatureStore = create<MiniatureState>((set, get) => ({
     }
   },
 
-  // Update a miniature (generic update function)
+  // Update a miniature (used by Kanban drag-and-drop)
   updateMiniature: async (id: string, updates: Partial<Miniature>) => {
     set({ error: null })
     
@@ -181,26 +178,6 @@ export const useMiniatureStore = create<MiniatureState>((set, get) => ({
     }
   },
 
-  // Move miniature to next stage
-  moveToNextStage: async (id: string) => {
-    const { getNextStage, updateMiniature } = get()
-    const nextStage = getNextStage(id)
-    
-    if (nextStage) {
-      await updateMiniature(id, { stageId: nextStage.id })
-    }
-  },
-
-  // Move miniature to previous stage
-  moveToPreviousStage: async (id: string) => {
-    const { getPreviousStage, updateMiniature } = get()
-    const previousStage = getPreviousStage(id)
-    
-    if (previousStage) {
-      await updateMiniature(id, { stageId: previousStage.id })
-    }
-  },
-
   // ===== STAGE MANAGEMENT ACTIONS =====
 
   // Add a new stage
@@ -216,7 +193,7 @@ export const useMiniatureStore = create<MiniatureState>((set, get) => ({
       if (response.data) {
         if (response.allStages) {
           // If the API returned all stages (meaning positioning was handled), use that
-          set((state) => ({ 
+          set(() => ({ 
             stages: response.allStages!
           }))
         } else {
@@ -310,33 +287,9 @@ export const useMiniatureStore = create<MiniatureState>((set, get) => ({
     return stages.find(s => s.id === miniature.stageId) || null
   },
 
-  // Helper function to get the next stage for a miniature
-  getNextStage: (miniatureId: string) => {
-    const { miniatures, stages } = get()
-    const miniature = miniatures.find(m => m.id === miniatureId)
-    if (!miniature) return null
-    
-    const currentStage = stages.find(s => s.id === miniature.stageId)
-    if (!currentStage) return null
-    
-    const sortedStages = stages.sort((a, b) => a.sortOrder - b.sortOrder)
-    const currentIndex = sortedStages.findIndex(s => s.id === currentStage.id)
-    
-    return sortedStages[currentIndex + 1] || null
-  },
-
-  // Helper function to get the previous stage for a miniature
-  getPreviousStage: (miniatureId: string) => {
-    const { miniatures, stages } = get()
-    const miniature = miniatures.find(m => m.id === miniatureId)
-    if (!miniature) return null
-    
-    const currentStage = stages.find(s => s.id === miniature.stageId)
-    if (!currentStage) return null
-    
-    const sortedStages = stages.sort((a, b) => a.sortOrder - b.sortOrder)
-    const currentIndex = sortedStages.findIndex(s => s.id === currentStage.id)
-    
-    return sortedStages[currentIndex - 1] || null
+  // Helper function to get all miniatures in a specific stage (for Kanban columns)
+  getMiniaturesInStage: (stageId: string) => {
+    const { miniatures } = get()
+    return miniatures.filter(m => m.stageId === stageId)
   },
 }))
