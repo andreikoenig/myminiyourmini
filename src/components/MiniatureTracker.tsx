@@ -78,7 +78,7 @@ export default function MiniatureTracker() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="w-full">
         {/* Header with user menu */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -112,7 +112,8 @@ export default function MiniatureTracker() {
         )}
 
         {/* Add New Miniature Form */}
-        <Card className="mb-8">
+        <div className="flex justify-center mb-8">
+        <Card className="w-full max-w-4xl">
           <CardHeader>
             <CardTitle>Add New Miniature</CardTitle>
             <CardDescription>
@@ -157,6 +158,7 @@ export default function MiniatureTracker() {
             </form>
           </CardContent>
         </Card>
+        </div>
 
         {/* Loading State */}
         {isLoading && miniatures.length === 0 && (

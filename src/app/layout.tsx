@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import AuthWrapper from "@/components/AuthWrapper";
+import { AuthDebugPanel } from "@/components/AuthDebugPanel"; // ADD THIS
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,6 +33,8 @@ export default function RootLayout({
         <AuthWrapper>
           {children}
         </AuthWrapper>
+        {/* ADD THIS LINE - Only shows in development */}
+        {process.env.NODE_ENV === 'development' && <AuthDebugPanel />}
       </body>
     </html>
   );

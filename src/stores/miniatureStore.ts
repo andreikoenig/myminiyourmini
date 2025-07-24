@@ -1,6 +1,6 @@
-// src/stores/miniatureStore.ts - Simplified for Kanban-only workflow
 import { create } from 'zustand'
 import { Stage } from '@/lib/schemas'
+import { useAuthStore } from './authStore'
 
 // Define the miniature interface (matches your API)
 export interface Miniature {
@@ -49,12 +49,16 @@ interface MiniatureState {
   getMiniaturesInStage: (stageId: string) => Miniature[]
 }
 
-// API helper functions
+// API helper functions with auth
 const apiCall = async <T>(url: string, options?: RequestInit): Promise<T> => {
   try {
+    // Get auth headers from auth store
+    const authHeaders = useAuthStore.getState().getAuthHeaders()
+    
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
         ...options?.headers,
       },
       ...options,
@@ -155,6 +159,7 @@ export const useMiniatureStore = create<MiniatureState>((set, get) => ({
       set({ 
         error: error instanceof Error ? error.message : 'Failed to update miniature'
       })
+      throw error // Re-throw for optimistic update handling
     }
   },
 
@@ -273,6 +278,7 @@ export const useMiniatureStore = create<MiniatureState>((set, get) => ({
       set({ 
         error: error instanceof Error ? error.message : 'Failed to reorder stages'
       })
+      throw error // Re-throw for optimistic update handling
     }
   },
 

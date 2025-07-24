@@ -4,16 +4,39 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 
+// CRITICAL DEBUG LOGGING - FORCE CONSOLE OUTPUT
+console.log('=== DATABASE INITIALIZATION DEBUG ===')
+console.log('[Database] NODE_ENV:', process.env.NODE_ENV)
+console.log('[Database] AWS_REGION:', process.env.AWS_REGION)
+console.log('[Database] Has AWS_ACCESS_KEY_ID:', !!process.env.AWS_ACCESS_KEY_ID)
+console.log('[Database] Has AWS_SECRET_ACCESS_KEY:', !!process.env.AWS_SECRET_ACCESS_KEY)
+console.log('[Database] Has DYNAMODB_ENDPOINT:', !!process.env.DYNAMODB_ENDPOINT)
+console.log('[Database] Is Development Mode:', process.env.NODE_ENV === 'development')
+
 // Create the base DynamoDB client with connection configuration
 // This client handles the low-level connection to DynamoDB
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || 'us-east-1',
-  endpoint: process.env.DYNAMODB_ENDPOINT || 'http://dynamodb:8000',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy',
-  },
+  // CRITICAL FIX: Only use local endpoint in development
+  ...(process.env.NODE_ENV === 'development' && {
+    endpoint: process.env.DYNAMODB_ENDPOINT || 'http://dynamodb:8000',
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy',
+    },
+  }),
+  // In production, AWS SDK uses environment variables automatically
 })
+
+// LOG WHICH DATABASE WILL BE USED
+if (process.env.NODE_ENV === 'development') {
+  console.log('[Database] *** USING LOCAL DYNAMODB ***')
+  console.log('[Database] Endpoint:', process.env.DYNAMODB_ENDPOINT || 'http://dynamodb:8000')
+} else {
+  console.log('[Database] *** USING AWS DYNAMODB ***')
+  console.log('[Database] Region:', process.env.AWS_REGION || 'us-east-1')
+  console.log('[Database] Access Key ID:', process.env.AWS_ACCESS_KEY_ID?.substring(0, 8) + '...')
+}
 
 // Create the document client for easier JSON operations
 // The document client provides a higher-level interface that automatically
@@ -56,10 +79,12 @@ export const handleDatabaseError = (
 ): never => {
   console.error(`Database error in ${operation} on ${tableName}:`, error)
   
-  // You could add more sophisticated error handling here, such as:
-  // - Different handling for different types of AWS errors
-  // - Retry logic for transient failures
-  // - Metrics collection for monitoring
+  // Enhanced error logging for AWS debugging
+  if (error instanceof Error) {
+    console.error('[Database] Error name:', error.name)
+    console.error('[Database] Error message:', error.message)
+    console.error('[Database] Error stack:', error.stack)
+  }
   
   throw new DatabaseError(
     `Failed to ${operation}`,
@@ -100,3 +125,31 @@ export const validateOptionalString = (value: unknown, fieldName: string): strin
   }
   return value.trim()
 }
+
+console.log('[Database] Database configuration complete!')
+console.log('=== END DATABASE DEBUG ===')
+
+// =============================================================================
+// POTENTIAL OTHER ISSUES TO CHECK:
+// =============================================================================
+
+/*
+1. Check if userDb.ts uses same database config:
+   - Should import { docClient } from './database'
+   - Should NOT have its own DynamoDB client
+
+2. Check if Users table exists in AWS:
+   - Your setup.ts only creates Miniatures and Stages
+   - But userDb.ts tries to use Users table
+
+3. Check if AWS credentials are valid:
+   - Try AWS CLI: aws dynamodb list-tables --region us-east-1
+
+4. Check if tables have correct names:
+   - AWS Console -> DynamoDB -> Tables
+   - Should be exactly: Users, Miniatures, Stages
+
+5. Most likely remaining issue:
+   - userDb.ts uses different database client
+   - OR Users table doesn't exist in AWS
+*/

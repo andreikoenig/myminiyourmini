@@ -1,4 +1,4 @@
-// src/components/KanbanBoard.tsx - Fixed for proper state updates
+// src/components/KanbanBoard.tsx - Full width version
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -130,28 +130,19 @@ export default function KanbanBoard() {
         </div>
       )}
 
-      {/* Drag and Drop Context - Truly Responsive */}
+      {/* Drag and Drop Context - RESPONSIVE WITH WRAPPING */}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="w-full overflow-x-auto">
-          <div className={`
-            grid gap-6 pb-6
-            ${stages.length === 1 ? 'grid-cols-1' : ''}
-            ${stages.length === 2 ? 'grid-cols-1 md:grid-cols-2' : ''}
-            ${stages.length === 3 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : ''}
-            ${stages.length === 4 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : ''}
-            ${stages.length === 5 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : ''}
-            ${stages.length === 6 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6' : ''}
-            ${stages.length === 7 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7' : ''}
-            ${stages.length === 8 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8' : ''}
-            ${stages.length >= 9 ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : ''}
-          `} style={{ 
-            minWidth: stages.length > 4 ? 'max-content' : 'auto'
+        <div className="w-full">
+          {/* UPDATED: CSS Grid with auto-fit for responsive wrapping */}
+          <div className="grid gap-6 pb-6" style={{ 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            minHeight: '320px'
           }}>
             {stages.map((stage) => {
               const stageMiniatures = miniaturesByStage[stage.id] || []
 
               return (
-                <div key={stage.id} className="kanban-column min-w-[240px]">
+                <div key={stage.id} className="w-full">
                   {/* Unified Swimlane Container - Title + Cards in one gray box */}
                   <Droppable droppableId={stage.id}>
                     {(provided, snapshot) => (

@@ -10,22 +10,24 @@ interface AuthWrapperProps {
 }
 
 export default function AuthWrapper({ children }: AuthWrapperProps) {
-  const { isAuthenticated, checkAuthStatus } = useAuthStore()
+  const { user, isLoading, checkAuthStatus } = useAuthStore()
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [isInitializing, setIsInitializing] = useState(true)
 
   // Check authentication status on mount
   useEffect(() => {
     const initAuth = async () => {
+      console.log('[AuthWrapper] Initializing auth...')
       await checkAuthStatus()
       setIsInitializing(false)
+      console.log('[AuthWrapper] Auth initialization complete')
     }
     
     initAuth()
   }, [checkAuthStatus])
 
   // Show loading spinner during initialization
-  if (isInitializing) {
+  if (isInitializing || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
@@ -37,7 +39,8 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   }
 
   // Show auth form if not authenticated
-  if (!isAuthenticated) {
+  if (!user) {
+    console.log('[AuthWrapper] User not authenticated, showing auth form')
     return (
       <AuthForm 
         mode={authMode} 
@@ -47,5 +50,6 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   }
 
   // Show main app if authenticated
+  console.log('[AuthWrapper] User authenticated:', user.username)
   return <>{children}</>
 }

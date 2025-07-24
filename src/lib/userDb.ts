@@ -264,17 +264,30 @@ export const userDb = {
     }
   },
 
-  // Generate JWT token for user
-  generateToken(user: User): string {
-    const payload: SessionData = {
-      userId: user.id,
-      email: user.email,
-      username: user.username,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // 7 days
-    }
+// Generate JWT token for user
+generateToken(user: User): string {
+  const payload = {
+    userId: user.id,
+    email: user.email,
+    username: user.username,
+    iat: Math.floor(Date.now() / 1000),
+    // Don't manually set exp - let expiresIn handle it
+  }
 
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
+},
+
+  async getAllUsers(): Promise<User[]> {
+    try {
+      const command = new ScanCommand({
+        TableName: USERS_TABLE,
+      })
+      
+      const response = await docClient.send(command)
+      return (response.Items as User[]) || []
+    } catch (error) {
+      return handleDatabaseError(error, 'get all users', USERS_TABLE)
+    }
   },
 
   // Verify JWT token and return user data

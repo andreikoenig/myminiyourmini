@@ -1,4 +1,3 @@
-// src/app/api/setup/route.ts
 import { NextResponse } from 'next/server'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { CreateTableCommand, DescribeTableCommand, KeySchemaElement, AttributeDefinition, KeyType, ScalarAttributeType } from '@aws-sdk/client-dynamodb'
@@ -39,10 +38,22 @@ async function createTable(
   await client.send(createTableCommand)
 }
 
-export async function POST() {  // Notice: no request parameter needed
+export async function POST() {
   const results: string[] = []
   
   try {
+    // Setup Users table (ADDED THIS!)
+    if (await tableExists('Users')) {
+      results.push('Table Users already exists')
+    } else {
+      await createTable(
+        'Users',
+        [{ AttributeName: 'id', KeyType: KeyType.HASH }],
+        [{ AttributeName: 'id', AttributeType: ScalarAttributeType.S }]
+      )
+      results.push('Table Users created successfully')
+    }
+
     // Setup Miniatures table
     if (await tableExists(TABLE_NAMES.MINIATURES)) {
       results.push(`Table ${TABLE_NAMES.MINIATURES} already exists`)

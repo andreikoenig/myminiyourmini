@@ -83,22 +83,50 @@ export default function AuthForm({ mode, onModeChange }: AuthFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    console.log('[AuthForm] Form submitted, mode:', mode)
+    console.log('[AuthForm] Form data:', { email: formData.email, username: formData.username, hasPassword: !!formData.password })
+    
     if (!validateForm()) {
+      console.log('[AuthForm] Validation failed')
       return
     }
 
-    const success = mode === 'login' 
-      ? await login({ email: formData.email, password: formData.password })
-      : await register({
+    console.log('[AuthForm] Validation passed, calling auth store...')
+    
+    // Check if register function exists
+    console.log('[AuthForm] Register function type:', typeof register)
+    console.log('[AuthForm] Login function type:', typeof login)
+
+    try {
+      let success = false
+      
+      if (mode === 'login') {
+        console.log('[AuthForm] Calling login...')
+        success = await login({ 
+          email: formData.email, 
+          password: formData.password 
+        })
+      } else {
+        console.log('[AuthForm] Calling register...')
+        // FIXED: Remove displayName field - it's not in your RegisterRequest interface
+        success = await register({
           email: formData.email,
           username: formData.username,
           password: formData.password,
-          displayName: formData.displayName || formData.username
+          // displayName field removed - not in your auth store interface
         })
+      }
 
-    if (success) {
-      // Form will be hidden by parent component when user becomes authenticated
-      console.log(`${mode} successful!`)
+      console.log('[AuthForm] Auth function returned:', success)
+
+      if (success) {
+        console.log(`[AuthForm] ${mode} successful!`)
+        // Form will be hidden by parent component when user becomes authenticated
+      } else {
+        console.log(`[AuthForm] ${mode} failed - success was false`)
+      }
+    } catch (error) {
+      console.error('[AuthForm] Error during auth:', error)
     }
   }
 
@@ -165,21 +193,7 @@ export default function AuthForm({ mode, onModeChange }: AuthFormProps) {
               </div>
             )}
 
-            {/* Display Name Field (Register only) */}
-            {mode === 'register' && (
-              <div className="space-y-2">
-                <Label htmlFor="displayName">Display Name (Optional)</Label>
-                <Input
-                  id="displayName"
-                  name="displayName"
-                  type="text"
-                  placeholder="Your display name"
-                  value={formData.displayName}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                />
-              </div>
-            )}
+            {/* REMOVED Display Name Field - not needed */}
 
             {/* Password Field */}
             <div className="space-y-2">

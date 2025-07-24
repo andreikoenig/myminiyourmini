@@ -1,4 +1,3 @@
-// src/stores/authStore.ts
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -7,7 +6,6 @@ interface PublicUser {
   id: string
   email: string
   username: string
-  displayName: string
   createdAt: string
 }
 
@@ -20,7 +18,6 @@ interface RegisterRequest {
   email: string
   username: string
   password: string
-  displayName?: string
 }
 
 interface AuthResponse {
@@ -35,7 +32,6 @@ interface AuthState {
   // State
   user: PublicUser | null
   token: string | null
-  isAuthenticated: boolean
   isLoading: boolean
   error: string | null
   
@@ -46,70 +42,124 @@ interface AuthState {
   clearError: () => void
   checkAuthStatus: () => Promise<void>
   
+  // Computed properties that AuthWrapper expects
+  isAuthenticated: boolean
+  
   // Utility functions
   getAuthHeaders: () => Record<string, string>
-  isTokenExpired: () => boolean
 }
 
-// Create the auth store with basic functionality
+// Create the auth store with REAL API functionality
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       // Initial state
       user: null,
       token: null,
-      isAuthenticated: false,
       isLoading: false,
       error: null,
+
+      // Computed property for authentication status
+      get isAuthenticated() {
+        return !!get().user && !!get().token
+      },
 
       // Clear error messages
       clearError: () => set({ error: null }),
 
-      // Login action (placeholder for now)
+      // REAL login implementation
       login: async (credentials: LoginRequest) => {
+        console.log('[AuthStore] Starting login for:', credentials.email)
         set({ isLoading: true, error: null })
         
         try {
-          // TODO: Implement actual login API call
-          console.log('Login attempt:', credentials.email)
-          
-          // Simulate successful login for now
-          set({
-            user: { id: '1', email: credentials.email, username: 'testuser', displayName: 'Test User', createdAt: new Date().toISOString() },
-            token: 'dummy-token',
-            isAuthenticated: true,
-            isLoading: false,
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(credentials),
           })
-          return true
-        } catch {
+
+          const data: AuthResponse = await response.json()
+          console.log('[AuthStore] Login response:', { success: data.success, hasUser: !!data.user, hasToken: !!data.token })
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Login failed')
+          }
+
+          if (!data.user || !data.token) {
+            throw new Error('Invalid response from server')
+          }
+
           set({
-            error: 'Login failed',
+            user: data.user,
+            token: data.token,
             isLoading: false,
+            error: null,
+          })
+
+          console.log('[AuthStore] Login successful for user:', data.user.username)
+          return true
+
+        } catch (error) {
+          console.error('[AuthStore] Login error:', error)
+          const errorMessage = error instanceof Error ? error.message : 'Login failed'
+          
+          set({
+            error: errorMessage,
+            isLoading: false,
+            user: null,
+            token: null,
           })
           return false
         }
       },
 
-      // Register action (placeholder for now)
+      // REAL register implementation
       register: async (userData: RegisterRequest) => {
+        console.log('[AuthStore] Starting registration for:', userData.email)
         set({ isLoading: true, error: null })
         
         try {
-          // TODO: Implement actual register API call
-          console.log('Register attempt:', userData.email)
-          
-          // Simulate successful registration for now
-          set({
-            user: { id: '1', email: userData.email, username: userData.username, displayName: 'Test User', createdAt: new Date().toISOString() },
-            token: 'dummy-token',
-            isAuthenticated: true,
-            isLoading: false,
+          const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(userData),
           })
-          return true
-        } catch {
+
+          const data: AuthResponse = await response.json()
+          console.log('[AuthStore] Register response:', { success: data.success, hasUser: !!data.user, hasToken: !!data.token })
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Registration failed')
+          }
+
+          if (!data.user || !data.token) {
+            throw new Error('Invalid response from server')
+          }
+
           set({
-            error: 'Registration failed',
+            user: data.user,
+            token: data.token,
             isLoading: false,
+            error: null,
+          })
+
+          console.log('[AuthStore] Registration successful for user:', data.user.username)
+          return true
+
+        } catch (error) {
+          console.error('[AuthStore] Registration error:', error)
+          const errorMessage = error instanceof Error ? error.message : 'Registration failed'
+          
+          set({
+            error: errorMessage,
+            isLoading: false,
+            user: null,
+            token: null,
           })
           return false
         }
@@ -117,18 +167,47 @@ export const useAuthStore = create<AuthState>()(
 
       // Logout action
       logout: () => {
+        console.log('[AuthStore] Logging out')
         set({
           user: null,
           token: null,
-          isAuthenticated: false,
           error: null,
         })
       },
 
-      // Check auth status (placeholder for now)
+      // Check auth status using /me endpoint
       checkAuthStatus: async () => {
-        // TODO: Implement token validation
-        console.log('Checking auth status...')
+        const { token } = get()
+        
+        if (!token) {
+          console.log('[AuthStore] No token found, skipping auth check')
+          return
+        }
+
+        console.log('[AuthStore] Checking auth status with existing token')
+        
+        try {
+          const response = await fetch('/api/auth/me', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          })
+
+          const data: AuthResponse = await response.json()
+
+          if (!response.ok || !data.success || !data.user) {
+            console.log('[AuthStore] Auth check failed, clearing token')
+            set({ user: null, token: null, error: null })
+            return
+          }
+
+          console.log('[AuthStore] Auth check successful for user:', data.user.username)
+          set({ user: data.user, error: null })
+
+        } catch (error) {
+          console.error('[AuthStore] Auth check error:', error)
+          set({ user: null, token: null, error: null })
+        }
       },
 
       // Get headers for authenticated requests
@@ -136,19 +215,12 @@ export const useAuthStore = create<AuthState>()(
         const { token } = get()
         return token ? { Authorization: `Bearer ${token}` } : {}
       },
-
-      // Check if token is expired (placeholder for now)
-      isTokenExpired: () => {
-        const { token } = get()
-        return !token // Simple check for now
-      },
     }),
     {
       name: 'auth-storage',
       partialize: (state) => ({
         user: state.user,
         token: state.token,
-        isAuthenticated: state.isAuthenticated,
       }),
     }
   )
